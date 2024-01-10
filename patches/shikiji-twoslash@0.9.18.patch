@@ -1,0 +1,105 @@
+diff --git a/dist/core.d.mts b/dist/core.d.mts
+index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..e187507ce1662709987d09b5829b649451235679 100644
+--- a/dist/core.d.mts
++++ b/dist/core.d.mts
+@@ -97,6 +97,11 @@ interface RendererRichOptions {
+      * Classes added to injected elements
+      */
+     classExtra?: string;
++    /**
++     * Language for syntax highlight.
++     * @default the language of the code block
++     */
++    lang?: string;
+ }
+ /**
+  * An alternative renderer that providers better prefixed class names,
+diff --git a/dist/core.d.ts b/dist/core.d.ts
+index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..e187507ce1662709987d09b5829b649451235679 100644
+--- a/dist/core.d.ts
++++ b/dist/core.d.ts
+@@ -97,6 +97,11 @@ interface RendererRichOptions {
+      * Classes added to injected elements
+      */
+     classExtra?: string;
++    /**
++     * Language for syntax highlight.
++     * @default the language of the code block
++     */
++    lang?: string;
+ }
+ /**
+  * An alternative renderer that providers better prefixed class names,
+diff --git a/dist/core.mjs b/dist/core.mjs
+index 895ba78d536756fe0e44b1d47f716aaaffa866d2..f40afd00100a179f1bc374ffba4c4b93210dd09e 100644
+--- a/dist/core.mjs
++++ b/dist/core.mjs
+@@ -551,11 +551,12 @@ function rendererRich(options = {}) {
+     classExtra = "",
+     jsdoc = true
+   } = options;
+-  function hightlightPopupContent(codeToHast, options2, info) {
++  function hightlightPopupContent(codeToHast, shikijiOptions, info) {
+     if (!info.text)
+       return [];
+     const themedContent = codeToHast(formatInfo(info.text), {
+-      ...options2,
++      ...shikijiOptions,
++      lang: options.lang || shikijiOptions.lang,
+       transformers: [],
+       transforms: void 0
+     }).children[0].children[0].children;
+@@ -833,6 +834,7 @@ function createTransformerFactory(defaultTwoslasher) {
+           if (!lineEl) {
+             if (throws)
+               throw new Error(`[shikiji-twoslash] Cannot find line ${line} in code element`);
++            return;
+           }
+           const textNodes = lineEl.children.flatMap((i) => i.type === "element" ? i.children || [] : []);
+           let index = 0;
+@@ -864,7 +866,7 @@ function createTransformerFactory(defaultTwoslasher) {
+           if (query.kind === "completions") {
+             const token = locateTextToken(query.line - 1, query.offset);
+             if (!token)
+-              throw new Error(`[shikiji-twoslash] Cannot find token at L${query.line}:${query.offset}`);
++              continue;
+             skipTokens.add(token);
+             if (renderer.nodeCompletions) {
+               const clone = { ...token };
+@@ -875,7 +877,7 @@ function createTransformerFactory(defaultTwoslasher) {
+           } else if (query.kind === "query") {
+             const token = locateTextToken(query.line - 1, query.offset);
+             if (!token)
+-              throw new Error(`[shikiji-twoslash] Cannot find token at L${query.line}:${query.offset}`);
++              continue;
+             skipTokens.add(token);
+             if (renderer.nodeQuery) {
+               const clone = { ...token };
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index af8685da7f9d71e5d851f118077acc66e876acb6..6d3ab977f2bc00d0009feaa4624a2b33818b3a69 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -4,6 +4,9 @@ export { CompletionItem, RendererRichOptions, TwoSlashRenderers, createTransform
+ import '@typescript/twoslash';
+ import 'hast';
+ 
++/**
++ * Factory function to create a Shikiji transformer for twoslash integrations.
++ */
+ declare const transformerTwoSlash: (options?: TransformerTwoSlashOptions) => shikiji_core.ShikijiTransformer;
+ 
+ export { TransformerTwoSlashOptions, transformerTwoSlash };
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 0c96483bc9dd92c4a6b6bb6534ac3e61b360d8be..0e3f2479dccdbd26560d8eb58ec670552874fb5f 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -4,6 +4,9 @@ export { CompletionItem, RendererRichOptions, TwoSlashRenderers, createTransform
+ import '@typescript/twoslash';
+ import 'hast';
+ 
++/**
++ * Factory function to create a Shikiji transformer for twoslash integrations.
++ */
+ declare const transformerTwoSlash: (options?: TransformerTwoSlashOptions) => shikiji_core.ShikijiTransformer;
+ 
+ export { TransformerTwoSlashOptions, transformerTwoSlash };
