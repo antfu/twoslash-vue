@@ -1,8 +1,71 @@
 diff --git a/dist/core.d.mts b/dist/core.d.mts
-index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..e187507ce1662709987d09b5829b649451235679 100644
+index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..1909d7afc5f505a77f060cf267b6cfb617f0701c 100644
 --- a/dist/core.d.mts
 +++ b/dist/core.d.mts
-@@ -97,6 +97,11 @@ interface RendererRichOptions {
+@@ -1,4 +1,4 @@
+-import { TwoSlashReturn, twoslasher, TwoSlashOptions } from '@typescript/twoslash';
++import { TwoSlashReturn, twoslasher, TwoSlashOptions, TokenError, TokenTag, TokenQuery, TokenCompletion, TokenHover, TwoSlashExecuteOptions } from 'twoslashes';
+ import { CodeToHastOptions, ShikijiTransformerContext, ShikijiTransformer } from 'shikiji-core';
+ import { ElementContent, Element, Text } from 'hast';
+ 
+@@ -38,30 +38,25 @@ interface TransformerTwoSlashOptions {
+     /**
+      * Custom renderers to decide how each info should be rendered
+      */
+-    renderer?: TwoSlashRenderers;
++    renderer?: TwoSlashRenderer;
+     /**
+      * Strictly throw when there is an error
+      * @default true
+      */
+     throws?: boolean;
+ }
+-interface TwoSlashRenderers {
+-    lineError?(this: ShikijiTransformerContext, error: TwoSlashReturn['errors'][0]): ElementContent[];
+-    lineCustomTag?(this: ShikijiTransformerContext, tag: TwoSlashReturn['tags'][0]): ElementContent[];
+-    lineQuery?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0], targetNode?: Element | Text): ElementContent[];
+-    lineCompletions?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0]): ElementContent[];
+-    nodeError?(this: ShikijiTransformerContext, error: TwoSlashReturn['errors'][0], node: Element | Text): Partial<ElementContent>;
+-    nodeStaticInfo(this: ShikijiTransformerContext, info: TwoSlashReturn['staticQuickInfos'][0], node: Element | Text): Partial<ElementContent>;
+-    nodeQuery?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0], node: Element | Text): Partial<ElementContent>;
+-    nodeCompletions?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0], node: Element | Text): Partial<ElementContent>;
++interface TwoSlashRenderer {
++    lineError?(this: ShikijiTransformerContext, error: TokenError): ElementContent[];
++    lineCustomTag?(this: ShikijiTransformerContext, tag: TokenTag): ElementContent[];
++    lineQuery?(this: ShikijiTransformerContext, query: TokenQuery, targetNode?: Element | Text): ElementContent[];
++    lineCompletions?(this: ShikijiTransformerContext, query: TokenCompletion): ElementContent[];
++    nodeError?(this: ShikijiTransformerContext, error: TokenError, node: Element | Text): Partial<ElementContent>;
++    nodeStaticInfo(this: ShikijiTransformerContext, info: TokenHover, node: Element | Text): Partial<ElementContent>;
++    nodeQuery?(this: ShikijiTransformerContext, query: TokenQuery, node: Element | Text): Partial<ElementContent>;
++    nodeCompletions?(this: ShikijiTransformerContext, query: TokenCompletion, node: Element | Text): Partial<ElementContent>;
+ }
+ 
+-/**
+- * The default renderer aligning with the original `shiki-twoslash` output.
+- */
+-declare function rendererClassic(): TwoSlashRenderers;
+-
+-type CompletionItem = NonNullable<TwoSlashReturn['queries'][0]['completions']>[0];
++type CompletionItem = NonNullable<TokenCompletion['completions']>[number];
+ declare const defaultCompletionIcons: Record<CompletionItem['kind'], Element | undefined>;
+ declare const defaultCustomTagIcons: Record<string, Element | undefined>;
+ 
+@@ -91,31 +86,52 @@ interface RendererRichOptions {
+     /**
+      * Custom formatter for the type info text.
+      * Note that it might not be valid TypeScript syntax.
++     *
++     * @default defaultHoverInfoProcessor
+      */
+-    formatInfo?(info: string): string;
++    processHoverInfo?: (info: string) => string;
++    /**
++     * Custom formatter for the docs text (can be markdown).
++     *
++     * @default undefined
++     */
++    processHoverDocs?: (docs: string) => string;
+     /**
       * Classes added to injected elements
       */
      classExtra?: string;
@@ -11,14 +74,114 @@ index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..e187507ce1662709987d09b5829b6494
 +     * @default the language of the code block
 +     */
 +    lang?: string;
++    /**
++     * @deprecated Use `processHoverInfo` instead.
++     */
++    formatInfo?(info: string): string;
  }
  /**
   * An alternative renderer that providers better prefixed class names,
+  * with syntax highlight for the info text.
+  */
+-declare function rendererRich(options?: RendererRichOptions): TwoSlashRenderers;
++declare function rendererRich(options?: RendererRichOptions): TwoSlashRenderer;
++/**
++ * The default hover info processor, which will do some basic cleanup
++ */
++declare function defaultHoverInfoProcessor(type: string): string;
++
++/**
++ * The default renderer aligning with the original `shiki-twoslash` output.
++ */
++declare function rendererClassic(): TwoSlashRenderer;
+ 
+ /**
+  * This file is the core of the shikiji-twoslash package,
+  * Decoupled from twoslash's implementation and allowing to introduce custom implementation or cache system.
+  */
+ 
+-declare function defaultTwoSlashOptions(): {
+-    customTags: string[];
+-    defaultCompilerOptions: {
+-        module: number;
+-        target: number;
+-    };
+-};
+-declare function createTransformerFactory(defaultTwoslasher: typeof twoslasher): (options?: TransformerTwoSlashOptions) => ShikijiTransformer;
++declare function defaultTwoSlashOptions(): TwoSlashExecuteOptions;
++type TwoSlashFunction = (code: string, lang?: string, options?: TwoSlashExecuteOptions) => TwoSlashReturn;
++declare function createTransformerFactory(defaultTwoslasher: TwoSlashFunction, defaultRenderer?: TwoSlashRenderer): (options?: TransformerTwoSlashOptions) => ShikijiTransformer;
+ 
+-export { type CompletionItem, type RendererRichOptions, type TransformerTwoSlashOptions, type TwoSlashRenderers, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultTwoSlashOptions, rendererClassic, rendererRich };
++export { type CompletionItem, type RendererRichOptions, type TransformerTwoSlashOptions, type TwoSlashRenderer, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultHoverInfoProcessor, defaultTwoSlashOptions, rendererClassic, rendererRich };
 diff --git a/dist/core.d.ts b/dist/core.d.ts
-index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..e187507ce1662709987d09b5829b649451235679 100644
+index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..1909d7afc5f505a77f060cf267b6cfb617f0701c 100644
 --- a/dist/core.d.ts
 +++ b/dist/core.d.ts
-@@ -97,6 +97,11 @@ interface RendererRichOptions {
+@@ -1,4 +1,4 @@
+-import { TwoSlashReturn, twoslasher, TwoSlashOptions } from '@typescript/twoslash';
++import { TwoSlashReturn, twoslasher, TwoSlashOptions, TokenError, TokenTag, TokenQuery, TokenCompletion, TokenHover, TwoSlashExecuteOptions } from 'twoslashes';
+ import { CodeToHastOptions, ShikijiTransformerContext, ShikijiTransformer } from 'shikiji-core';
+ import { ElementContent, Element, Text } from 'hast';
+ 
+@@ -38,30 +38,25 @@ interface TransformerTwoSlashOptions {
+     /**
+      * Custom renderers to decide how each info should be rendered
+      */
+-    renderer?: TwoSlashRenderers;
++    renderer?: TwoSlashRenderer;
+     /**
+      * Strictly throw when there is an error
+      * @default true
+      */
+     throws?: boolean;
+ }
+-interface TwoSlashRenderers {
+-    lineError?(this: ShikijiTransformerContext, error: TwoSlashReturn['errors'][0]): ElementContent[];
+-    lineCustomTag?(this: ShikijiTransformerContext, tag: TwoSlashReturn['tags'][0]): ElementContent[];
+-    lineQuery?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0], targetNode?: Element | Text): ElementContent[];
+-    lineCompletions?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0]): ElementContent[];
+-    nodeError?(this: ShikijiTransformerContext, error: TwoSlashReturn['errors'][0], node: Element | Text): Partial<ElementContent>;
+-    nodeStaticInfo(this: ShikijiTransformerContext, info: TwoSlashReturn['staticQuickInfos'][0], node: Element | Text): Partial<ElementContent>;
+-    nodeQuery?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0], node: Element | Text): Partial<ElementContent>;
+-    nodeCompletions?(this: ShikijiTransformerContext, query: TwoSlashReturn['queries'][0], node: Element | Text): Partial<ElementContent>;
++interface TwoSlashRenderer {
++    lineError?(this: ShikijiTransformerContext, error: TokenError): ElementContent[];
++    lineCustomTag?(this: ShikijiTransformerContext, tag: TokenTag): ElementContent[];
++    lineQuery?(this: ShikijiTransformerContext, query: TokenQuery, targetNode?: Element | Text): ElementContent[];
++    lineCompletions?(this: ShikijiTransformerContext, query: TokenCompletion): ElementContent[];
++    nodeError?(this: ShikijiTransformerContext, error: TokenError, node: Element | Text): Partial<ElementContent>;
++    nodeStaticInfo(this: ShikijiTransformerContext, info: TokenHover, node: Element | Text): Partial<ElementContent>;
++    nodeQuery?(this: ShikijiTransformerContext, query: TokenQuery, node: Element | Text): Partial<ElementContent>;
++    nodeCompletions?(this: ShikijiTransformerContext, query: TokenCompletion, node: Element | Text): Partial<ElementContent>;
+ }
+ 
+-/**
+- * The default renderer aligning with the original `shiki-twoslash` output.
+- */
+-declare function rendererClassic(): TwoSlashRenderers;
+-
+-type CompletionItem = NonNullable<TwoSlashReturn['queries'][0]['completions']>[0];
++type CompletionItem = NonNullable<TokenCompletion['completions']>[number];
+ declare const defaultCompletionIcons: Record<CompletionItem['kind'], Element | undefined>;
+ declare const defaultCustomTagIcons: Record<string, Element | undefined>;
+ 
+@@ -91,31 +86,52 @@ interface RendererRichOptions {
+     /**
+      * Custom formatter for the type info text.
+      * Note that it might not be valid TypeScript syntax.
++     *
++     * @default defaultHoverInfoProcessor
+      */
+-    formatInfo?(info: string): string;
++    processHoverInfo?: (info: string) => string;
++    /**
++     * Custom formatter for the docs text (can be markdown).
++     *
++     * @default undefined
++     */
++    processHoverDocs?: (docs: string) => string;
+     /**
       * Classes added to injected elements
       */
      classExtra?: string;
@@ -27,14 +190,241 @@ index 5d0b16ce7ad80c86f6c24f73485b8903c729d9ea..e187507ce1662709987d09b5829b6494
 +     * @default the language of the code block
 +     */
 +    lang?: string;
++    /**
++     * @deprecated Use `processHoverInfo` instead.
++     */
++    formatInfo?(info: string): string;
  }
  /**
   * An alternative renderer that providers better prefixed class names,
+  * with syntax highlight for the info text.
+  */
+-declare function rendererRich(options?: RendererRichOptions): TwoSlashRenderers;
++declare function rendererRich(options?: RendererRichOptions): TwoSlashRenderer;
++/**
++ * The default hover info processor, which will do some basic cleanup
++ */
++declare function defaultHoverInfoProcessor(type: string): string;
++
++/**
++ * The default renderer aligning with the original `shiki-twoslash` output.
++ */
++declare function rendererClassic(): TwoSlashRenderer;
+ 
+ /**
+  * This file is the core of the shikiji-twoslash package,
+  * Decoupled from twoslash's implementation and allowing to introduce custom implementation or cache system.
+  */
+ 
+-declare function defaultTwoSlashOptions(): {
+-    customTags: string[];
+-    defaultCompilerOptions: {
+-        module: number;
+-        target: number;
+-    };
+-};
+-declare function createTransformerFactory(defaultTwoslasher: typeof twoslasher): (options?: TransformerTwoSlashOptions) => ShikijiTransformer;
++declare function defaultTwoSlashOptions(): TwoSlashExecuteOptions;
++type TwoSlashFunction = (code: string, lang?: string, options?: TwoSlashExecuteOptions) => TwoSlashReturn;
++declare function createTransformerFactory(defaultTwoslasher: TwoSlashFunction, defaultRenderer?: TwoSlashRenderer): (options?: TransformerTwoSlashOptions) => ShikijiTransformer;
+ 
+-export { type CompletionItem, type RendererRichOptions, type TransformerTwoSlashOptions, type TwoSlashRenderers, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultTwoSlashOptions, rendererClassic, rendererRich };
++export { type CompletionItem, type RendererRichOptions, type TransformerTwoSlashOptions, type TwoSlashRenderer, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultHoverInfoProcessor, defaultTwoSlashOptions, rendererClassic, rendererRich };
 diff --git a/dist/core.mjs b/dist/core.mjs
-index 895ba78d536756fe0e44b1d47f716aaaffa866d2..f40afd00100a179f1bc374ffba4c4b93210dd09e 100644
+index 895ba78d536756fe0e44b1d47f716aaaffa866d2..b1ff2ce059d882e72b4079e5d57e16d441f38b98 100644
 --- a/dist/core.mjs
 +++ b/dist/core.mjs
-@@ -551,11 +551,12 @@ function rendererRich(options = {}) {
+@@ -1,182 +1,5 @@
+ import { addClassToHast } from 'shikiji-core';
+ 
+-function rendererClassic() {
+-  return {
+-    nodeStaticInfo(info, node) {
+-      return {
+-        type: "element",
+-        tagName: "data-lsp",
+-        properties: {
+-          lsp: info.text
+-        },
+-        children: [node]
+-      };
+-    },
+-    nodeError(_, node) {
+-      return {
+-        type: "element",
+-        tagName: "data-err",
+-        properties: {},
+-        children: [node]
+-      };
+-    },
+-    lineError(error) {
+-      return [
+-        {
+-          type: "element",
+-          tagName: "div",
+-          properties: {
+-            class: "error"
+-          },
+-          children: [
+-            {
+-              type: "element",
+-              tagName: "span",
+-              properties: {},
+-              children: [
+-                {
+-                  type: "text",
+-                  value: error.renderedMessage
+-                }
+-              ]
+-            },
+-            {
+-              type: "element",
+-              tagName: "span",
+-              properties: {
+-                class: "code"
+-              },
+-              children: [
+-                {
+-                  type: "text",
+-                  value: String(error.code)
+-                }
+-              ]
+-            }
+-          ]
+-        },
+-        {
+-          type: "element",
+-          tagName: "span",
+-          properties: {
+-            class: "error-behind"
+-          },
+-          children: [
+-            {
+-              type: "text",
+-              value: error.renderedMessage
+-            }
+-          ]
+-        }
+-      ];
+-    },
+-    lineCompletions(query) {
+-      return [
+-        {
+-          type: "element",
+-          tagName: "div",
+-          properties: { class: "meta-line" },
+-          children: [
+-            { type: "text", value: " ".repeat(query.offset) },
+-            {
+-              type: "element",
+-              tagName: "span",
+-              properties: { class: "inline-completions" },
+-              children: [{
+-                type: "element",
+-                tagName: "ul",
+-                properties: { class: "dropdown" },
+-                children: query.completions.filter((i) => i.name.startsWith(query.completionsPrefix || "____")).map((i) => ({
+-                  type: "element",
+-                  tagName: "li",
+-                  properties: {
+-                    class: i.kindModifiers?.split(",").includes("deprecated") ? "deprecated" : void 0
+-                  },
+-                  children: [{
+-                    type: "element",
+-                    tagName: "span",
+-                    properties: {},
+-                    children: [
+-                      {
+-                        type: "element",
+-                        tagName: "span",
+-                        properties: { class: "result-found" },
+-                        children: [
+-                          {
+-                            type: "text",
+-                            value: query.completionsPrefix || ""
+-                          }
+-                        ]
+-                      },
+-                      {
+-                        type: "text",
+-                        value: i.name.slice(query.completionsPrefix?.length || 0)
+-                      }
+-                    ]
+-                  }]
+-                }))
+-              }]
+-            }
+-          ]
+-        }
+-      ];
+-    },
+-    lineQuery(query, targetNode) {
+-      const targetText = targetNode?.type === "text" ? targetNode.value : "";
+-      const offset = Math.max(0, (query.offset || 0) + Math.floor(targetText.length / 2) - 1);
+-      return [
+-        {
+-          type: "element",
+-          tagName: "div",
+-          properties: { class: "meta-line" },
+-          children: [
+-            { type: "text", value: " ".repeat(offset) },
+-            {
+-              type: "element",
+-              tagName: "span",
+-              properties: { class: "popover" },
+-              children: [
+-                {
+-                  type: "element",
+-                  tagName: "div",
+-                  properties: { class: "arrow" },
+-                  children: []
+-                },
+-                {
+-                  type: "text",
+-                  value: query.text || ""
+-                }
+-              ]
+-            }
+-          ]
+-        }
+-      ];
+-    },
+-    lineCustomTag(tag) {
+-      return [
+-        {
+-          type: "element",
+-          tagName: "div",
+-          properties: { class: `meta-line logger ${tag.name}-log` },
+-          children: [
+-            {
+-              type: "element",
+-              tagName: "span",
+-              properties: { class: "message" },
+-              children: [
+-                {
+-                  type: "text",
+-                  value: tag.annotation || ""
+-                }
+-              ]
+-            }
+-          ]
+-        }
+-      ];
+-    }
+-  };
+-}
+-
+ const module = {
+ 	type: "element",
+ 	tagName: "svg",
+@@ -547,36 +370,47 @@ function rendererRich(options = {}) {
+   const {
+     completionIcons = defaultCompletionIcons,
+     customTagIcons = defaultCustomTagIcons,
+-    formatInfo = (info) => info,
++    formatInfo,
++    processHoverInfo = formatInfo || defaultHoverInfoProcessor,
++    processHoverDocs = (docs) => docs,
      classExtra = "",
      jsdoc = true
    } = options;
@@ -42,14 +432,289 @@ index 895ba78d536756fe0e44b1d47f716aaaffa866d2..f40afd00100a179f1bc374ffba4c4b93
 +  function hightlightPopupContent(codeToHast, shikijiOptions, info) {
      if (!info.text)
        return [];
-     const themedContent = codeToHast(formatInfo(info.text), {
+-    const themedContent = codeToHast(formatInfo(info.text), {
 -      ...options2,
++    const text = processHoverInfo(info.text) ?? info.text;
++    if (!text.trim())
++      return [];
++    const themedContent = codeToHast(text, {
 +      ...shikijiOptions,
 +      lang: options.lang || shikijiOptions.lang,
        transformers: [],
        transforms: void 0
      }).children[0].children[0].children;
-@@ -833,6 +834,7 @@ function createTransformerFactory(defaultTwoslasher) {
+     if (jsdoc && info.docs) {
+-      themedContent.push({
+-        type: "element",
+-        tagName: "div",
+-        properties: { class: "twoslash-popup-jsdoc" },
+-        children: [
+-          {
+-            type: "text",
+-            value: info.docs
+-          }
+-        ]
+-      });
++      const docs = processHoverDocs(info.docs) ?? info.docs;
++      if (docs) {
++        themedContent.push({
++          type: "element",
++          tagName: "div",
++          properties: { class: "twoslash-popup-jsdoc" },
++          children: [
++            {
++              type: "text",
++              value: docs
++            }
++          ]
++        });
++      }
+     }
+     return themedContent;
+   }
+   return {
+     nodeStaticInfo(info, node) {
+       const themedContent = hightlightPopupContent(this.codeToHast, this.options, info);
++      if (!themedContent.length)
++        return node;
+       return {
+         type: "element",
+         tagName: "span",
+@@ -727,7 +561,7 @@ function rendererRich(options = {}) {
+           children: [
+             {
+               type: "text",
+-              value: error.renderedMessage
++              value: error.text
+             }
+           ]
+         }
+@@ -754,7 +588,194 @@ function rendererRich(options = {}) {
+             ] : [],
+             {
+               type: "text",
+-              value: tag.annotation || ""
++              value: tag.text || ""
++            }
++          ]
++        }
++      ];
++    }
++  };
++}
++const regexType = /^[A-Z][a-zA-Z0-9_]*(\<[^\>]*\>)?:/;
++const regexFunction = /^[a-zA-Z0-9_]*\(/;
++function defaultHoverInfoProcessor(type) {
++  let content = type.replace(/^\(([\w-]+?)\)\s+/mg, "").replace(/\nimport .*$/, "").replace(/^(interface|namespace) \w+$/mg, "").trim();
++  if (content.match(regexType))
++    content = `type ${content}`;
++  else if (content.match(regexFunction))
++    content = `function ${content}`;
++  return content;
++}
++
++function rendererClassic() {
++  return {
++    nodeStaticInfo(info, node) {
++      return {
++        type: "element",
++        tagName: "data-lsp",
++        properties: {
++          lsp: info.text
++        },
++        children: [node]
++      };
++    },
++    nodeError(_, node) {
++      return {
++        type: "element",
++        tagName: "data-err",
++        properties: {},
++        children: [node]
++      };
++    },
++    lineError(error) {
++      return [
++        {
++          type: "element",
++          tagName: "div",
++          properties: {
++            class: "error"
++          },
++          children: [
++            {
++              type: "element",
++              tagName: "span",
++              properties: {},
++              children: [
++                {
++                  type: "text",
++                  value: error.text
++                }
++              ]
++            },
++            {
++              type: "element",
++              tagName: "span",
++              properties: {
++                class: "code"
++              },
++              children: [
++                {
++                  type: "text",
++                  value: String(error.code)
++                }
++              ]
++            }
++          ]
++        },
++        {
++          type: "element",
++          tagName: "span",
++          properties: {
++            class: "error-behind"
++          },
++          children: [
++            {
++              type: "text",
++              value: error.text
++            }
++          ]
++        }
++      ];
++    },
++    lineCompletions(query) {
++      return [
++        {
++          type: "element",
++          tagName: "div",
++          properties: { class: "meta-line" },
++          children: [
++            { type: "text", value: " ".repeat(query.character) },
++            {
++              type: "element",
++              tagName: "span",
++              properties: { class: "inline-completions" },
++              children: [{
++                type: "element",
++                tagName: "ul",
++                properties: { class: "dropdown" },
++                children: query.completions.filter((i) => i.name.startsWith(query.completionsPrefix || "____")).map((i) => ({
++                  type: "element",
++                  tagName: "li",
++                  properties: {
++                    class: i.kindModifiers?.split(",").includes("deprecated") ? "deprecated" : void 0
++                  },
++                  children: [{
++                    type: "element",
++                    tagName: "span",
++                    properties: {},
++                    children: [
++                      {
++                        type: "element",
++                        tagName: "span",
++                        properties: { class: "result-found" },
++                        children: [
++                          {
++                            type: "text",
++                            value: query.completionsPrefix || ""
++                          }
++                        ]
++                      },
++                      {
++                        type: "text",
++                        value: i.name.slice(query.completionsPrefix?.length || 0)
++                      }
++                    ]
++                  }]
++                }))
++              }]
++            }
++          ]
++        }
++      ];
++    },
++    lineQuery(query, targetNode) {
++      const targetText = targetNode?.type === "text" ? targetNode.value : "";
++      const offset = Math.max(0, (query.character || 0) + Math.floor(targetText.length / 2) - 1);
++      return [
++        {
++          type: "element",
++          tagName: "div",
++          properties: { class: "meta-line" },
++          children: [
++            { type: "text", value: " ".repeat(offset) },
++            {
++              type: "element",
++              tagName: "span",
++              properties: { class: "popover" },
++              children: [
++                {
++                  type: "element",
++                  tagName: "div",
++                  properties: { class: "arrow" },
++                  children: []
++                },
++                {
++                  type: "text",
++                  value: query.text || ""
++                }
++              ]
++            }
++          ]
++        }
++      ];
++    },
++    lineCustomTag(tag) {
++      return [
++        {
++          type: "element",
++          tagName: "div",
++          properties: { class: `meta-line logger ${tag.name}-log` },
++          children: [
++            {
++              type: "element",
++              tagName: "span",
++              properties: { class: "message" },
++              children: [
++                {
++                  type: "text",
++                  value: tag.text || ""
++                }
++              ]
+             }
+           ]
+         }
+@@ -766,13 +787,13 @@ function rendererRich(options = {}) {
+ function defaultTwoSlashOptions() {
+   return {
+     customTags: ["annotate", "log", "warn", "error"],
+-    defaultCompilerOptions: {
++    compilerOptions: {
+       module: 99,
+       target: 99
+     }
+   };
+ }
+-function createTransformerFactory(defaultTwoslasher) {
++function createTransformerFactory(defaultTwoslasher, defaultRenderer) {
+   return function transformerTwoSlash(options = {}) {
+     const {
+       langs = ["ts", "tsx"],
+@@ -784,9 +805,11 @@ function createTransformerFactory(defaultTwoslasher) {
+       },
+       twoslasher = defaultTwoslasher,
+       explicitTrigger = false,
+-      renderer = rendererClassic(),
++      renderer = defaultRenderer,
+       throws = true
+     } = options;
++    if (!renderer)
++      throw new Error("[shikiji-twoslash] Missing renderer");
+     const filter = options.filter || ((lang, _, options2) => langs.includes(lang) && (!explicitTrigger || /\btwoslash\b/.test(options2.meta?.__raw || "")));
+     return {
+       preprocess(code, shikijiOptions) {
+@@ -833,6 +856,7 @@ function createTransformerFactory(defaultTwoslasher) {
            if (!lineEl) {
              if (throws)
                throw new Error(`[shikiji-twoslash] Cannot find line ${line} in code element`);
@@ -57,30 +722,86 @@ index 895ba78d536756fe0e44b1d47f716aaaffa866d2..f40afd00100a179f1bc374ffba4c4b93
            }
            const textNodes = lineEl.children.flatMap((i) => i.type === "element" ? i.children || [] : []);
            let index = 0;
-@@ -864,7 +866,7 @@ function createTransformerFactory(defaultTwoslasher) {
-           if (query.kind === "completions") {
-             const token = locateTextToken(query.line - 1, query.offset);
-             if (!token)
+@@ -847,8 +871,6 @@ function createTransformerFactory(defaultTwoslasher) {
+         };
+         const skipTokens = /* @__PURE__ */ new Set();
+         for (const error of twoslash.errors) {
+-          if (error.line == null || error.character == null)
+-            return;
+           const token = locateTextToken(error.line, error.character);
+           if (!token)
+             continue;
+@@ -861,31 +883,30 @@ function createTransformerFactory(defaultTwoslasher) {
+             insertAfterLine(error.line, renderer.lineError.call(this, error));
+         }
+         for (const query of twoslash.queries) {
+-          if (query.kind === "completions") {
+-            const token = locateTextToken(query.line - 1, query.offset);
+-            if (!token)
 -              throw new Error(`[shikiji-twoslash] Cannot find token at L${query.line}:${query.offset}`);
-+              continue;
-             skipTokens.add(token);
-             if (renderer.nodeCompletions) {
-               const clone = { ...token };
-@@ -875,7 +877,7 @@ function createTransformerFactory(defaultTwoslasher) {
-           } else if (query.kind === "query") {
-             const token = locateTextToken(query.line - 1, query.offset);
-             if (!token)
+-            skipTokens.add(token);
+-            if (renderer.nodeCompletions) {
+-              const clone = { ...token };
+-              Object.assign(token, renderer.nodeCompletions.call(this, query, clone));
+-            }
+-            if (renderer.lineCompletions)
+-              insertAfterLine(query.line, renderer.lineCompletions.call(this, query));
+-          } else if (query.kind === "query") {
+-            const token = locateTextToken(query.line - 1, query.offset);
+-            if (!token)
 -              throw new Error(`[shikiji-twoslash] Cannot find token at L${query.line}:${query.offset}`);
-+              continue;
-             skipTokens.add(token);
-             if (renderer.nodeQuery) {
-               const clone = { ...token };
+-            skipTokens.add(token);
+-            if (renderer.nodeQuery) {
+-              const clone = { ...token };
+-              Object.assign(token, renderer.nodeQuery.call(this, query, clone));
+-            }
+-            if (renderer.lineQuery)
+-              insertAfterLine(query.line, renderer.lineQuery.call(this, query, token));
++          const token = locateTextToken(query.line, query.character);
++          if (!token)
++            continue;
++          skipTokens.add(token);
++          if (renderer.nodeQuery) {
++            const clone = { ...token };
++            Object.assign(token, renderer.nodeQuery.call(this, query, clone));
++          }
++          if (renderer.lineQuery)
++            insertAfterLine(query.line, renderer.lineQuery.call(this, query, token));
++        }
++        for (const completion of twoslash.completions) {
++          const token = locateTextToken(completion.line, completion.character);
++          if (!token)
++            continue;
++          skipTokens.add(token);
++          if (renderer.nodeCompletions) {
++            const clone = { ...token };
++            Object.assign(token, renderer.nodeCompletions.call(this, completion, clone));
+           }
++          if (renderer.lineCompletions)
++            insertAfterLine(completion.line, renderer.lineCompletions.call(this, completion));
+         }
+-        for (const info of twoslash.staticQuickInfos) {
++        for (const info of twoslash.hovers) {
+           const token = locateTextToken(info.line, info.character);
+           if (!token || token.type !== "text")
+             continue;
+@@ -903,4 +924,4 @@ function createTransformerFactory(defaultTwoslasher) {
+   };
+ }
+ 
+-export { createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultTwoSlashOptions, rendererClassic, rendererRich };
++export { createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultHoverInfoProcessor, defaultTwoSlashOptions, rendererClassic, rendererRich };
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index af8685da7f9d71e5d851f118077acc66e876acb6..6d3ab977f2bc00d0009feaa4624a2b33818b3a69 100644
+index af8685da7f9d71e5d851f118077acc66e876acb6..04c928881123f1d4c3ed22dba706cb679778ab56 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
-@@ -4,6 +4,9 @@ export { CompletionItem, RendererRichOptions, TwoSlashRenderers, createTransform
- import '@typescript/twoslash';
+@@ -1,9 +1,12 @@
+ import * as shikiji_core from 'shikiji-core';
+ import { TransformerTwoSlashOptions } from './core.mjs';
+-export { CompletionItem, RendererRichOptions, TwoSlashRenderers, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultTwoSlashOptions, rendererClassic, rendererRich } from './core.mjs';
+-import '@typescript/twoslash';
++export { CompletionItem, RendererRichOptions, TwoSlashRenderer, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultHoverInfoProcessor, defaultTwoSlashOptions, rendererClassic, rendererRich } from './core.mjs';
++import 'twoslashes';
  import 'hast';
  
 +/**
@@ -90,11 +811,16 @@ index af8685da7f9d71e5d851f118077acc66e876acb6..6d3ab977f2bc00d0009feaa4624a2b33
  
  export { TransformerTwoSlashOptions, transformerTwoSlash };
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 0c96483bc9dd92c4a6b6bb6534ac3e61b360d8be..0e3f2479dccdbd26560d8eb58ec670552874fb5f 100644
+index 0c96483bc9dd92c4a6b6bb6534ac3e61b360d8be..89e4d2600efb5cc41d4c19ec2e1b175f703a4dd7 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -4,6 +4,9 @@ export { CompletionItem, RendererRichOptions, TwoSlashRenderers, createTransform
- import '@typescript/twoslash';
+@@ -1,9 +1,12 @@
+ import * as shikiji_core from 'shikiji-core';
+ import { TransformerTwoSlashOptions } from './core.js';
+-export { CompletionItem, RendererRichOptions, TwoSlashRenderers, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultTwoSlashOptions, rendererClassic, rendererRich } from './core.js';
+-import '@typescript/twoslash';
++export { CompletionItem, RendererRichOptions, TwoSlashRenderer, createTransformerFactory, defaultCompletionIcons, defaultCustomTagIcons, defaultHoverInfoProcessor, defaultTwoSlashOptions, rendererClassic, rendererRich } from './core.js';
++import 'twoslashes';
  import 'hast';
  
 +/**
@@ -103,3 +829,57 @@ index 0c96483bc9dd92c4a6b6bb6534ac3e61b360d8be..0e3f2479dccdbd26560d8eb58ec67055
  declare const transformerTwoSlash: (options?: TransformerTwoSlashOptions) => shikiji_core.ShikijiTransformer;
  
  export { TransformerTwoSlashOptions, transformerTwoSlash };
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 209a5146bcbe474e9c180a93b52bbe00360b241a..082d6b90e9299c5439be8aa3d783c52ca99e62c1 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1,8 +1,11 @@
+-import { twoslasher } from '@typescript/twoslash';
+-import { createTransformerFactory } from './core.mjs';
+-export { defaultCompletionIcons, defaultCustomTagIcons, defaultTwoSlashOptions, rendererClassic, rendererRich } from './core.mjs';
++import { createTwoSlasher } from 'twoslashes';
++import { createTransformerFactory, rendererClassic } from './core.mjs';
++export { defaultCompletionIcons, defaultCustomTagIcons, defaultHoverInfoProcessor, defaultTwoSlashOptions, rendererRich } from './core.mjs';
+ import 'shikiji-core';
+ 
+-const transformerTwoSlash = createTransformerFactory(twoslasher);
++const transformerTwoSlash = /* @__PURE__ */ createTransformerFactory(
++  /* @__PURE__ */ createTwoSlasher(),
++  /* @__PURE__ */ rendererClassic()
++);
+ 
+-export { createTransformerFactory, transformerTwoSlash };
++export { createTransformerFactory, rendererClassic, transformerTwoSlash };
+diff --git a/package.json b/package.json
+index 05959ea72ca46961fa5dcbd87fdc91fa39c69419..789e5445b919e0b4eb80a91415ed4592927dc260 100644
+--- a/package.json
++++ b/package.json
+@@ -48,9 +48,16 @@
+     "*.css",
+     "dist"
+   ],
++  "scripts": {
++    "build": "unbuild",
++    "dev": "unbuild --stub",
++    "prepublishOnly": "nr build",
++    "test": "vitest"
++  },
+   "dependencies": {
+     "@typescript/twoslash": "^3.2.4",
+-    "shikiji-core": "0.9.18"
++    "shikiji-core": "workspace:*",
++    "twoslashes": "^0.0.2"
+   },
+   "devDependencies": {
+     "@iconify-json/carbon": "^1.1.27",
+@@ -59,10 +66,5 @@
+     "shiki": "^0.14.7",
+     "shiki-twoslash": "^3.1.2",
+     "typescript": "^5.3.3"
+-  },
+-  "scripts": {
+-    "build": "unbuild",
+-    "dev": "unbuild --stub",
+-    "test": "vitest"
+   }
+ }

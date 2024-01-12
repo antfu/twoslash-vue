@@ -1,0 +1,66 @@
+diff --git a/dist/core.cjs b/dist/core.cjs
+index bf5744dab2e0c6eef84fb2abca1d3e60b5f25099..e9bd3b7dbbd952615551e21bcbd756570f39552b 100644
+--- a/dist/core.cjs
++++ b/dist/core.cjs
+@@ -821,22 +821,22 @@ function createTwoSlasher(createOptions = {}) {
+         removals
+       },
+       get queries() {
+-        return tokens.filter((i) => i.type === "query");
++        return this.tokens.filter((i) => i.type === "query");
+       },
+       get completions() {
+-        return tokens.filter((i) => i.type === "completion");
++        return this.tokens.filter((i) => i.type === "completion");
+       },
+       get errors() {
+-        return tokens.filter((i) => i.type === "error");
++        return this.tokens.filter((i) => i.type === "error");
+       },
+       get highlights() {
+-        return tokens.filter((i) => i.type === "highlight");
++        return this.tokens.filter((i) => i.type === "highlight");
+       },
+       get hovers() {
+-        return tokens.filter((i) => i.type === "hover");
++        return this.tokens.filter((i) => i.type === "hover");
+       },
+       get tags() {
+-        return tokens.filter((i) => i.type === "tag");
++        return this.tokens.filter((i) => i.type === "tag");
+       }
+     };
+   }
+diff --git a/dist/core.mjs b/dist/core.mjs
+index a278d8110fb2d7d4ab485ddeafd0f9c24b9abb93..56615925b5d1d434875198ef75eeecba9f71c2a7 100644
+--- a/dist/core.mjs
++++ b/dist/core.mjs
+@@ -819,22 +819,22 @@ function createTwoSlasher(createOptions = {}) {
+         removals
+       },
+       get queries() {
+-        return tokens.filter((i) => i.type === "query");
++        return this.tokens.filter((i) => i.type === "query");
+       },
+       get completions() {
+-        return tokens.filter((i) => i.type === "completion");
++        return this.tokens.filter((i) => i.type === "completion");
+       },
+       get errors() {
+-        return tokens.filter((i) => i.type === "error");
++        return this.tokens.filter((i) => i.type === "error");
+       },
+       get highlights() {
+-        return tokens.filter((i) => i.type === "highlight");
++        return this.tokens.filter((i) => i.type === "highlight");
+       },
+       get hovers() {
+-        return tokens.filter((i) => i.type === "hover");
++        return this.tokens.filter((i) => i.type === "hover");
+       },
+       get tags() {
+-        return tokens.filter((i) => i.type === "tag");
++        return this.tokens.filter((i) => i.type === "tag");
+       }
+     };
+   }

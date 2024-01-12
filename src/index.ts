@@ -1,10 +1,16 @@
+import { expect } from 'vitest'
 import * as vue from '@vue/language-core'
 import * as ts from 'typescript/lib/tsserverlibrary'
-import type { TwoSlashOptions, TwoSlashReturn } from '@typescript/twoslash'
-import { twoslasher } from '@typescript/twoslash'
+import type { CreateTwoSlashOptions, TwoSlashExecuteOptions, TwoSlashInstance } from 'twoslashes'
+import { createPositionConverter, createTwoSlasher } from 'twoslashes'
 
-export function twoslashVue(code: string, extension: string, options: TwoSlashOptions = {}): TwoSlashReturn {
-  if (extension === 'vue') {
+export function createTwoSlasherVue(createOptions: CreateTwoSlashOptions = {}, flag = true): TwoSlashInstance {
+  const twoslasher = createTwoSlasher(createOptions)
+
+  function vuefied(code: string, extension?: string, options: TwoSlashExecuteOptions = {}) {
+    if (extension !== 'vue')
+      return twoslasher(code, extension, options)
+
     const lang = vue.createVueLanguage(ts)
     const snapshot = ts.ScriptSnapshot.fromString(code)
     const fileSource = lang.createVirtualFile('index.vue', snapshot, 'vue')!
@@ -12,71 +18,53 @@ export function twoslashVue(code: string, extension: string, options: TwoSlashOp
     // No type for `content` in `EmbeddedFile`?
     const compiled = (fileCompiled as any).content.map((c: any) => Array.isArray(c) ? c[0] : c).join('')
 
+    // TODO: get generateGlobalHelperTypes
     const result = twoslasher(compiled, 'ts', {
       ...options,
-      defaultOptions: {
+      handbookOptions: {
         noErrorValidation: true,
-        ...options.defaultOptions,
+        ...options.handbookOptions,
+        keepNotations: true,
       },
     })
 
-    const mappings = fileCompiled.mappings
-    const lines = Array.from(code.matchAll(/^.*$/mg)).map(m => m[0])
+    if (!flag)
+      return result
 
-    function toSourceIndex(pos: number) {
-      for (const mapping of mappings) {
-        if (mapping.generatedRange[0] <= pos && pos <= mapping.generatedRange[1])
-          return mapping.sourceRange[0] + Math.floor((pos - mapping.generatedRange[0]) / (mapping.generatedRange[1] - mapping.generatedRange[0]) * (mapping.sourceRange[1] - mapping.sourceRange[0]))
-      }
-    }
-
-    function indexToPos(index: number) {
-      let line = 0
-      let character = 0
-      while (index > lines[line].length) {
-        index -= lines[line].length
-        line++
-      }
-      character = index
-      return { line, character }
-    }
+    const map = new vue.SourceMap(fileCompiled.mappings)
+    const pc = createPositionConverter(code)
 
     result.code = code
-    result.queries = result.queries
+    result.tokens = result.tokens
       .map((q) => {
-        const index = toSourceIndex(q.start - 1)!
-        if (index == null)
+        if ('target' in q && q.target.startsWith('__'))
           return undefined
-        const { line, character } = indexToPos(index)
-        return {
+        const start = map.toSourceOffset(q.start)?.[0]
+        const end = map.toSourceOffset(q.start + q.length)?.[0]
+        if (start == null || end == null || start < 0 || end < 0 || start >= end)
+          return undefined
+        // if ('target' in q) {
+        //   const compiledStr = compiled.slice(q.start, q.start + q.length)
+        //   console.log({ compiledStr, str: code.slice(start, end) })
+        //   // expect.soft(code.slice(index, end)).toBe(compiledStr)
+        // }
+        const to = {
           ...q,
-          start: index + 1,
-          line: line + 1,
-          offset: character,
+          start,
+          length: end - start,
+          ...pc.indexToPos(start),
         }
-      })
-      .filter(isNotNull)
-    result.staticQuickInfos = result.staticQuickInfos
-      .filter(i => !i.targetString.startsWith('__'))
-      .map((i) => {
-        const index = toSourceIndex(i.start - 1)!
-        if (index == null)
-          return undefined
-        const { line, character } = indexToPos(index)
-        return {
-          ...i,
-          start: index + 1,
-          line,
-          character,
-        }
+        return to
       })
       .filter(isNotNull)
 
     return result
   }
-  else {
-    return twoslasher(code, extension, options)
-  }
+
+  vuefied.dispose = twoslasher.dispose
+  vuefied.getCacheMap = twoslasher.getCacheMap
+
+  return vuefied
 }
 
 function isNotNull<T>(x: T | null | undefined): x is T {
