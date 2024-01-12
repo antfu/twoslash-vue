@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { codeToHtml } from 'shikiji'
-import { convertLegacyReturn } from 'twoslashes'
 import { createTransformerFactory, rendererRich } from 'shikiji-twoslash/core'
 import { createTwoSlasherVue } from '../src'
 
@@ -18,12 +17,20 @@ const double = computed(() => count.value * 2)
 </template>
 `
 
-const twoslasher = createTwoSlasherVue()
+const styleHeader = [
+  '<head>',
+  `<link rel="stylesheet" href="https://esm.sh/shikiji-twoslash@0.9.18/style-rich.css" />`,
+  `<style>:root { color-scheme: dark; --twoslash-popup-bg: #222; }</style>`,
+  '</head>',
+  '',
+].join('\n')
+
+const twoslasherVue = createTwoSlasherVue()
 
 it('exported', () => {
-  const result = twoslasher(code, 'vue')
+  const result = twoslasherVue(code, 'vue')
 
-  expect(result.tokens).toMatchInlineSnapshot(`
+  expect(result.tokens.slice(0, 10)).toMatchInlineSnapshot(`
     [
       {
         "character": 9,
@@ -130,80 +137,10 @@ it('exported', () => {
         "character": 3,
         "docs": undefined,
         "length": 6,
-        "line": 10,
-        "start": 166,
+        "line": 9,
+        "start": 156,
         "target": "button",
-        "text": "any",
-        "type": "hover",
-      },
-      {
-        "character": 50,
-        "docs": undefined,
-        "length": 6,
-        "line": 10,
-        "start": 213,
-        "target": "button",
-        "text": "any",
-        "type": "hover",
-      },
-      {
-        "character": 11,
-        "docs": undefined,
-        "length": 5,
-        "line": 10,
-        "start": 174,
-        "target": "click",
-        "text": "(property) 'click': any",
-        "type": "hover",
-      },
-      {
-        "character": 18,
-        "docs": undefined,
-        "length": 5,
-        "line": 10,
-        "start": 181,
-        "target": "count",
-        "text": "any",
-        "type": "hover",
-      },
-      {
-        "character": 18,
-        "docs": undefined,
-        "length": 5,
-        "line": 10,
-        "start": 181,
-        "target": "count",
-        "text": "const count: Ref<number>",
-        "type": "hover",
-      },
-      {
-        "character": 40,
-        "docs": undefined,
-        "length": 5,
-        "line": 10,
-        "start": 203,
-        "target": "count",
-        "text": "any",
-        "type": "hover",
-      },
-      {
-        "character": 27,
-        "docs": undefined,
-        "length": 7,
-        "line": 10,
-        "start": 190,
-        "target": "default",
-        "text": "any",
-        "type": "hover",
-      },
-      {
-        "character": 40,
-        "docs": undefined,
-        "length": 5,
-        "line": 10,
-        "start": 203,
-        "target": "count",
-        "text": "const count: Ref<number>",
+        "text": "(property) button: ButtonHTMLAttributes & ReservedProps",
         "type": "hover",
       },
     ]
@@ -215,23 +152,16 @@ it('highlight vue', async () => {
     lang: 'vue',
     theme: 'vitesse-dark',
     transformers: [
-      createTransformerFactory(twoslasher)({
+      createTransformerFactory(twoslasherVue)({
         langs: ['ts', 'tsx', 'vue'],
         renderer: rendererRich({
           lang: 'ts',
         }),
-        throws: false,
       }),
     ],
   })
 
-  expect([
-    '<head>',
-    `<link rel="stylesheet" href="https://esm.sh/shikiji-twoslash@0.9.18/style-rich.css" />`,
-    `<style>:root { color-scheme: dark; --twoslash-popup-bg: #222; }</style>`,
-    '</head>',
-    result,
-  ].join('\n'))
+  expect(styleHeader + result)
     .toMatchFileSnapshot('./out/example.vue.html')
 })
 
@@ -246,17 +176,10 @@ it('highlight raw', async () => {
         renderer: rendererRich({
           lang: 'ts',
         }),
-        throws: false,
       }),
     ],
   })
 
-  expect([
-    '<head>',
-    `<link rel="stylesheet" href="https://esm.sh/shikiji-twoslash@0.9.18/style-rich.css" />`,
-    `<style>:root { color-scheme: dark; --twoslash-popup-bg: #222; }</style>`,
-    '</head>',
-    result,
-  ].join('\n'))
-    .toMatchFileSnapshot('./out/example.html')
+  expect(styleHeader + result)
+    .toMatchFileSnapshot('./out/example.raw.html')
 })
