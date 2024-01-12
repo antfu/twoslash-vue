@@ -1,38 +1,33 @@
 import { SourceMap, createVueLanguage, sharedTypes } from '@vue/language-core'
 import * as ts from 'typescript/lib/tsserverlibrary'
 import type { CreateTwoSlashOptions, Range, TwoSlashExecuteOptions, TwoSlashInstance } from 'twoslashes'
-import { createTwoSlasher, removeCodeRanges, resolveTokenPositions } from 'twoslashes'
+import { createTwoSlasher, defaultCompilerOptions, removeCodeRanges, resolveNodePositions } from 'twoslashes'
 
 export function createTwoSlasherVue(createOptions: CreateTwoSlashOptions = {}, flag = true): TwoSlashInstance {
   const twoslasher = createTwoSlasher(createOptions)
 
-  function vuefied(code: string, extension?: string, options: TwoSlashExecuteOptions = {}) {
+  function twoslasherVue(code: string, extension?: string, options: TwoSlashExecuteOptions = {}) {
     if (extension !== 'vue')
       return twoslasher(code, extension, options)
 
     const lang = createVueLanguage(
       ts,
       {
-        target: 99,
-        strict: true,
-        moduleResolution: 2 satisfies ts.ModuleResolutionKind.NodeJs,
+        ...defaultCompilerOptions,
         ...options.compilerOptions,
       },
-      {
-        strictTemplates: false,
-      },
     )
-    const snapshot = ts.ScriptSnapshot.fromString(code)
-    const fileSource = lang.createVirtualFile('index.vue', snapshot, 'vue')!
+
+    const fileSource = lang.createVirtualFile('index.vue', ts.ScriptSnapshot.fromString(code), 'vue')!
     const fileCompiled = fileSource.getEmbeddedFiles()[0]
     const typeHelpers = sharedTypes.getTypesCode(fileSource.vueCompilerOptions)
     const compiled = [
-      // No type for `content` in `EmbeddedFile`?
       (fileCompiled as any).content.map((c: any) => Array.isArray(c) ? c[0] : c).join(''),
       '// ---cut-after---',
       typeHelpers,
     ].join('\n')
 
+    // Pass compiled to TS file to twoslash
     const result = twoslasher(compiled, 'tsx', {
       ...options,
       compilerOptions: {
@@ -50,11 +45,6 @@ export function createTwoSlasherVue(createOptions: CreateTwoSlashOptions = {}, f
         // ignore internal types
         return !id.startsWith('__VLS')
       },
-      filterToken(token) {
-        if (token.type === 'hover' && token.text === 'any')
-          return false
-        return true
-      },
     })
 
     if (!flag)
@@ -62,7 +52,8 @@ export function createTwoSlasherVue(createOptions: CreateTwoSlashOptions = {}, f
 
     const map = new SourceMap(fileCompiled.mappings)
 
-    const mappedTokens = result.tokens
+    // Map the tokens
+    const mappedNodes = result.nodes
       .map((q) => {
         if ('text' in q && q.text === 'any')
           return undefined
@@ -88,17 +79,16 @@ export function createTwoSlasherVue(createOptions: CreateTwoSlashOptions = {}, f
       })
       .filter(isNotNull)
 
-    const removed = removeCodeRanges(code, mappedRemovals, mappedTokens)
+    const removed = removeCodeRanges(code, mappedRemovals, mappedNodes)
     result.code = removed.code
-    result.tokens = resolveTokenPositions(removed.tokens!, result.code)
+    result.nodes = resolveNodePositions(removed.nodes, result.code)
 
     return result
   }
 
-  vuefied.dispose = twoslasher.dispose
-  vuefied.getCacheMap = twoslasher.getCacheMap
+  twoslasherVue.getCacheMap = twoslasher.getCacheMap
 
-  return vuefied
+  return twoslasherVue
 }
 
 function isNotNull<T>(x: T | null | undefined): x is T {

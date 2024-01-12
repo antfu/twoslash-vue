@@ -6,10 +6,11 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-Extended TwoSlash that supports Vue SFC.
+Extended TwoSlash that supports Vue SFC, based on [`twoslashes`](https://github.com/antfu/twoslashes).
 
 > [!IMPORTANT]
-> Working in Progress
+> Working in Progress.
+> This is not usable in Shikiji yet, waiting for it to support `twoslashes` first (https://github.com/antfu/shikiji/pull/91)
 
 ## Sponsors
 

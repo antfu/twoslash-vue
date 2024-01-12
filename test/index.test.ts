@@ -30,7 +30,7 @@ const twoslasherVue = createTwoSlasherVue()
 it('exported', () => {
   const result = twoslasherVue(code, 'vue')
 
-  expect(result.tokens.slice(0, 10)).toMatchInlineSnapshot(`
+  expect(result.nodes.slice(0, 10)).toMatchInlineSnapshot(`
     [
       {
         "character": 9,
@@ -91,11 +91,11 @@ it('exported', () => {
         "type": "hover",
       },
       {
-        "character": 6,
+        "character": 7,
         "docs": undefined,
         "length": 6,
         "line": 5,
-        "start": 90,
+        "start": 91,
         "target": "double",
         "text": "const double: ComputedRef<number>",
         "type": "query",
