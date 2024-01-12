@@ -1,5 +1,5 @@
 import { SourceMap, createVueLanguage, sharedTypes } from '@vue/language-core'
-import * as ts from 'typescript/lib/tsserverlibrary'
+import ts from 'typescript'
 import type { CreateTwoSlashOptions, Range, TwoSlashExecuteOptions, TwoSlashInstance } from 'twoslashes'
 import { createTwoSlasher, defaultCompilerOptions, removeCodeRanges, resolveNodePositions } from 'twoslashes'
 
