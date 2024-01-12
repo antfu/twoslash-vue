@@ -8,6 +8,9 @@
 
 Extended TwoSlash that supports Vue SFC.
 
+> [!IMPORTANT]
+> Working in Progress
+
 ## Sponsors
 
 <p align="center">
